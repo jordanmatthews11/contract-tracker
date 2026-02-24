@@ -1,36 +1,104 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contract Tracker
 
-## Getting Started
+Track contracts from the Mapping File (Google Sheet): dashboard, filters, monthly quota progress, and CSV export.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Next.js 14** (App Router) + **Tailwind CSS**
+- **Supabase** (PostgreSQL) for contracts and progress logs
+- **shadcn/ui** + **Papa Parse** (CSV import)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Quick start (run locally)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Install dependencies** (from the project folder):
 
-## Learn More
+   ```bash
+   cd "Contract Management - mapping"
+   npm install
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+2. **Create a Supabase project**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+   - Go to [supabase.com](https://supabase.com) and sign in (or create an account).
+   - Click **New project**, pick an org, name the project, set a database password, and create.
+   - Wait for the project to be ready.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. **Run the database migration**
+
+   - In the Supabase dashboard, open **SQL Editor**.
+   - Copy the full contents of `supabase/migrations/001_contracts_and_progress.sql` from this repo.
+   - Paste into the editor and click **Run**.
+
+4. **Get your API keys**
+
+   - In Supabase, go to **Project Settings** (gear icon) → **API**.
+   - Note: **Project URL**, **anon public** key, and **service_role** key (keep the service_role key secret).
+
+5. **Configure environment variables**
+
+   - In the project folder, copy the example env file:
+     ```bash
+     cp .env.example .env.local
+     ```
+   - Open `.env.local` and replace the placeholders with your values:
+     - `NEXT_PUBLIC_SUPABASE_URL` = Project URL from step 4
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon public key
+     - `SUPABASE_SERVICE_ROLE_KEY` = service_role key
+
+6. **Run the app**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000). Use **Import** to upload your Mapping File as CSV, then **Dashboard**, **Contracts**, and **Reports**.
+
+---
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Push the project to GitHub**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+   - Create a new repo on GitHub (if you don’t have one for this project).
+   - In your project folder:
+     ```bash
+     git init
+     git add .
+     git commit -m "Contract Tracker app"
+     git branch -M main
+     git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+     git push -u origin main
+     ```
+
+2. **Create a Vercel project**
+
+   - Go to [vercel.com](https://vercel.com) and sign in (use “Continue with GitHub” if you use GitHub).
+   - Click **Add New…** → **Project**.
+   - Import the GitHub repo that contains this app (e.g. “Contract Management - mapping” or the repo name you used).
+   - Leave **Framework Preset** as Next.js and **Root Directory** as `.` (or the folder that has `package.json`). Click **Deploy** (you can deploy once without env vars to confirm the repo is linked).
+
+3. **Add environment variables on Vercel**
+
+   - In the Vercel dashboard, open your project → **Settings** → **Environment Variables**.
+   - Add these (use the same values as in your `.env.local`):
+
+   | Name                         | Value                    |
+   | --------------------------- | ------------------------ |
+   | `NEXT_PUBLIC_SUPABASE_URL`  | Your Supabase project URL |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon public key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key |
+
+   - Save. Then go to **Deployments**, open the **⋯** on the latest deployment, and choose **Redeploy** so the new env vars are used.
+
+4. **Use your live app**
+
+   - After the redeploy, open the deployment URL (e.g. `https://your-project.vercel.app`). That’s your live Contract Tracker. Future pushes to `main` will trigger new deployments automatically.
+
+## Data model
+
+- **contracts**: One row per contract–retailer (from Mapping File). Key: `(deal_id, retailer_simple)`.
+- **progress_logs**: Monthly response counts per contract–retailer. Team updates via the contract detail page.
+
+CSV import expects the Mapping File columns: A = Deal ID, B = Start, C = End, D = Category, E = Country, G = Suggested store list, H = Retailer, I = Retailer Simple, J = Monthly quota, K = Notes, L = Months of collection.
