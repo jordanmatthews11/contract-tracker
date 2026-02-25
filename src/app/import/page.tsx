@@ -155,15 +155,15 @@ export default function ImportPage() {
             </p>
           </div>
 
-          {result.duplicateCount > 0 && (
+          {result.trueDuplicateCount > 0 && (
             <Section
-              title={`Duplicate rows in file — last value was kept`}
-              count={result.duplicateCount}
+              title={`True duplicate rows skipped (every cell matched another row exactly)`}
+              count={result.trueDuplicateCount}
               color="yellow"
             >
               <p className="mb-2 text-xs text-yellow-800">
-                These Deal ID + Retailer Simple combinations appeared more than once in the CSV.
-                The last row in the file was saved.
+                These rows had identical values in every column — they were skipped since saving
+                them again would add no new information. Everything else was saved.
               </p>
               <div className="max-h-48 overflow-y-auto rounded border border-yellow-300 bg-white">
                 <table className="w-full text-xs">
@@ -175,7 +175,7 @@ export default function ImportPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.duplicateExamples.map((key, i) => {
+                    {result.trueDuplicateExamples.map((key, i) => {
                       const [dealId, retailer] = key.split(" | ");
                       return (
                         <tr key={i} className="border-b last:border-0">
@@ -188,9 +188,9 @@ export default function ImportPage() {
                   </tbody>
                 </table>
               </div>
-              {result.duplicateCount > 50 && (
+              {result.trueDuplicateCount > 50 && (
                 <p className="mt-1 text-xs text-yellow-700">
-                  Showing first 50 of {result.duplicateCount} duplicates.
+                  Showing first 50 of {result.trueDuplicateCount} true duplicates.
                 </p>
               )}
             </Section>

@@ -98,7 +98,7 @@ export default async function ContractDetailPage({
           );
 
           return (
-            <Card key={`${c.deal_id}-${c.retailer_simple}`}>
+            <Card key={c.id}>
               <CardHeader>
                 <CardTitle className="text-base">{c.retailer_simple ?? c.retailer}</CardTitle>
                 <CardDescription>

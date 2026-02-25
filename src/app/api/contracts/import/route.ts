@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export type ImportRow = {
@@ -18,12 +19,18 @@ export type ImportRow = {
 export type ImportResult = {
   imported: number;
   totalRows: number;
-  duplicateCount: number;
-  duplicateExamples: string[];
+  trueDuplicateCount: number;
+  trueDuplicateExamples: string[];
   blankFieldRows: { row: number; fields: string[] }[];
 };
 
 const BATCH_SIZE = 500;
+
+function makeRowHash(fields: (string | number | null)[]): string {
+  return createHash("md5")
+    .update(fields.map((v) => (v == null ? "" : String(v))).join("|"))
+    .digest("hex");
+}
 
 export async function POST(request: Request) {
   try {
@@ -60,63 +67,76 @@ export async function POST(request: Request) {
       return s;
     };
 
-    // Track blank fields per row (row numbers are 1-indexed + header = +2)
     const blankFieldRows: { row: number; fields: string[] }[] = [];
+    const trueDuplicateHashes = new Set<string>();
+    const trueDuplicateExamples: string[] = [];
 
     const mapped = rows.map((r, idx) => {
       const rowNum = idx + 2;
       const dealId = normId(r.deal_id) || `_BLANK_ROW_${rowNum}`;
       const retailerSimple = r.retailer_simple ? String(r.retailer_simple).trim() : "";
+      const startDate = r.start_date || null;
+      const endDate = r.end_date || null;
+      const categoryCode = r.category_code || null;
+      const country = r.country || null;
+      const storeList = r.suggested_store_list || null;
+      const retailer = r.retailer || null;
+      const quota = safeInt(r.monthly_quota);
+      const notes = r.notes || null;
+      const months = safeInt(r.months_of_collection);
 
       const missingFields: string[] = [];
       if (!normId(r.deal_id)) missingFields.push("deal_id");
       if (!retailerSimple) missingFields.push("retailer_simple");
-      if (!r.country) missingFields.push("country");
-      if (r.monthly_quota == null) missingFields.push("monthly_quota");
-      if (!r.start_date) missingFields.push("start_date");
-      if (!r.end_date) missingFields.push("end_date");
+      if (!country) missingFields.push("country");
+      if (quota == null) missingFields.push("monthly_quota");
+      if (!startDate) missingFields.push("start_date");
+      if (!endDate) missingFields.push("end_date");
+      if (missingFields.length > 0) blankFieldRows.push({ row: rowNum, fields: missingFields });
 
-      if (missingFields.length > 0) {
-        blankFieldRows.push({ row: rowNum, fields: missingFields });
-      }
+      const hash = makeRowHash([
+        dealId, retailerSimple, startDate, endDate,
+        categoryCode, country, storeList, retailer, quota, notes, months,
+      ]);
 
       return {
         deal_id: dealId,
         retailer_simple: retailerSimple,
-        start_date: r.start_date || null,
-        end_date: r.end_date || null,
-        category_code: r.category_code || null,
-        country: r.country || null,
-        suggested_store_list: r.suggested_store_list || null,
-        retailer: r.retailer || null,
-        monthly_quota: safeInt(r.monthly_quota),
-        notes: r.notes || null,
-        months_of_collection: safeInt(r.months_of_collection),
+        start_date: startDate,
+        end_date: endDate,
+        category_code: categoryCode,
+        country,
+        suggested_store_list: storeList,
+        retailer,
+        monthly_quota: quota,
+        notes,
+        months_of_collection: months,
+        row_hash: hash,
       };
     });
 
-    // Deduplicate by (deal_id, retailer_simple) — last row wins.
-    // Track which keys appeared more than once.
-    const seenKeys = new Map<string, number>();
-    const duplicateKeys = new Set<string>();
+    // Deduplicate within the batch by row_hash (true exact-match duplicates only)
+    const seenHashes = new Map<string, number>();
+    const toInsert: (typeof mapped)[0][] = [];
     for (const row of mapped) {
-      const key = `${row.deal_id} | ${row.retailer_simple}`;
-      if (seenKeys.has(key)) duplicateKeys.add(key);
-      seenKeys.set(key, (seenKeys.get(key) ?? 0) + 1);
+      const prev = seenHashes.get(row.row_hash);
+      if (prev !== undefined) {
+        if (trueDuplicateExamples.length < 50) {
+          trueDuplicateExamples.push(`${row.deal_id} | ${row.retailer_simple}`);
+        }
+        trueDuplicateHashes.add(row.row_hash);
+      } else {
+        seenHashes.set(row.row_hash, 1);
+        toInsert.push(row);
+      }
     }
-
-    const dedupMap = new Map<string, (typeof mapped)[0]>();
-    for (const row of mapped) {
-      dedupMap.set(`${row.deal_id}|${row.retailer_simple}`, row);
-    }
-    const toUpsert = Array.from(dedupMap.values());
 
     const supabase = createServerSupabaseClient();
-    for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
-      const batch = toUpsert.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase.from("contracts").upsert(batch, {
-        onConflict: "deal_id,retailer_simple",
-      });
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+      const batch = toInsert.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase
+        .from("contracts")
+        .upsert(batch, { onConflict: "row_hash", ignoreDuplicates: true });
       if (error) {
         console.error("Import error at batch", i, error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -124,10 +144,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      imported: toUpsert.length,
+      imported: toInsert.length,
       totalRows: rows.length,
-      duplicateCount: duplicateKeys.size,
-      duplicateExamples: Array.from(duplicateKeys).slice(0, 50),
+      trueDuplicateCount: trueDuplicateHashes.size,
+      trueDuplicateExamples,
       blankFieldRows: blankFieldRows.slice(0, 200),
     } satisfies ImportResult);
   } catch (e) {

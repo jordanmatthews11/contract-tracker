@@ -139,7 +139,7 @@ export default async function DashboardPage() {
           ) : (
             <ul className="space-y-2">
               {expiringSoon.slice(0, 10).map((c) => (
-                <li key={`${c.deal_id}-${c.retailer_simple}`} className="flex items-center gap-2 text-sm">
+                <li key={c.id} className="flex items-center gap-2 text-sm">
                   <Badge variant="outline">Expiring</Badge>
                   <Link
                     href={`/contracts/${encodeURIComponent(c.deal_id)}`}
@@ -152,7 +152,7 @@ export default async function DashboardPage() {
                 </li>
               ))}
               {behindQuota.slice(0, 10).map((c) => (
-                <li key={`${c.deal_id}-${c.retailer_simple}`} className="flex items-center gap-2 text-sm">
+                <li key={c.id} className="flex items-center gap-2 text-sm">
                   <Badge variant="secondary">Behind quota</Badge>
                   <Link
                     href={`/contracts/${encodeURIComponent(c.deal_id)}`}
@@ -162,7 +162,7 @@ export default async function DashboardPage() {
                   </Link>
                   <span className="text-muted-foreground">{c.retailer_simple}</span>
                   <span className="text-muted-foreground">
-                    {logsByContract.get(`${c.deal_id}|${c.retailer_simple}`) ?? 0} / {c.monthly_quota}
+                    {logsByContract.get(`${c.deal_id}|${c.retailer_simple ?? ""}`) ?? 0} / {c.monthly_quota}
                   </span>
                 </li>
               ))}

@@ -42,7 +42,7 @@ export function ContractsTable({ contracts }: { contracts: Contract[] }) {
         </TableHeader>
         <TableBody>
           {contracts.map((c) => (
-            <TableRow key={`${c.deal_id}-${c.retailer_simple}`} className="cursor-pointer hover:bg-muted/50">
+            <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50">
               <TableCell>
                 <Link
                   href={`/contracts/${encodeURIComponent(c.deal_id)}`}
