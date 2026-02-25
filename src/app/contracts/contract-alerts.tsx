@@ -28,22 +28,49 @@ export function ContractAlerts({
 }) {
   const [showHubSpotModal, setShowHubSpotModal] = useState(false);
   const [showDupeModal, setShowDupeModal] = useState(false);
+  const [ignoreExpired, setIgnoreExpired] = useState(false);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const visibleHubspotDeals = ignoreExpired
+    ? hubspotNotInMapping.filter((d) => {
+        const start = d.hs_start_date ? d.hs_start_date.slice(0, 10) : null;
+        const end = d.hs_end_date ? d.hs_end_date.slice(0, 10) : null;
+        if (start && start > today) return false;
+        if (end && end < today) return false;
+        return true;
+      })
+    : hubspotNotInMapping;
 
   return (
     <>
       {hubspotNotInMapping.length > 0 && (
         <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center justify-between gap-4">
           <span className="font-medium">
-            {hubspotNotInMapping.length} HubSpot deal(s) not found in mapping sheet.
+            {visibleHubspotDeals.length} HubSpot deal(s) not found in mapping sheet
+            {ignoreExpired ? " (active window only)" : ""}.
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-destructive/50 text-destructive hover:bg-destructive/20"
-            onClick={() => setShowHubSpotModal(true)}
-          >
-            View
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIgnoreExpired((v) => !v)}
+              className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors ${
+                ignoreExpired
+                  ? "border-destructive bg-destructive text-white"
+                  : "border-destructive/50 text-destructive hover:bg-destructive/20"
+              }`}
+            >
+              {ignoreExpired ? "Showing active only" : "Ignore expired"}
+            </button>
+            {visibleHubspotDeals.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-destructive/50 text-destructive hover:bg-destructive/20"
+                onClick={() => setShowHubSpotModal(true)}
+              >
+                View
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -90,7 +117,7 @@ export function ContractAlerts({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {hubspotNotInMapping.map((d) => (
+                  {visibleHubspotDeals.map((d) => (
                     <TableRow key={d.hs_deal_id}>
                       <TableCell className="font-medium">{d.hs_deal_id}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{d.deal_name ?? "—"}</TableCell>
