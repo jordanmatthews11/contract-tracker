@@ -28,6 +28,18 @@ export type ContractRow = Contract & {
   progress_logs?: ProgressLog[];
 };
 
+export type JobSummaryExportRow = {
+  id?: string;
+  job_id: string | null;
+  name: string | null;
+  client: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  bounty: number | null;
+  charge: number | null;
+  imported_at?: string;
+};
+
 export type HubSpotDeal = {
   hs_deal_id: string;
   deal_name: string | null;

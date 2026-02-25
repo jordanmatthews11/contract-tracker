@@ -48,8 +48,8 @@ export function ContractsTable({
   const hasHubspot = hubspot && hubspot.size > 0;
 
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="rounded-md border text-xs">
+      <Table className="[&_th]:h-8 [&_th]:py-1 [&_th]:px-2 [&_td]:py-1 [&_td]:px-2">
         <TableHeader>
           <TableRow>
             <TableHead>Deal ID</TableHead>
