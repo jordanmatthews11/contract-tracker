@@ -42,7 +42,7 @@ export default async function ContractsPage({
   const { data: allDealIdRows } = await supabase.from("contracts").select("deal_id");
   const dealIdSet = new Set((allDealIdRows ?? []).map((r) => r.deal_id));
   const hubspotNotInMapping = (hubspotDeals ?? []).filter(
-    (d) => !dealIdSet.has(d.hs_deal_id) && d.fa_arr_type !== "Syndicated"
+    (d) => !dealIdSet.has(d.hs_deal_id) && d.fa_arr_type === "Syndicated"
   ) as HubSpotDeal[];
 
   const { data: allForDupes } = await supabase
