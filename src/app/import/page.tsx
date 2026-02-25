@@ -17,7 +17,7 @@ export default function ImportPage() {
   const [parsed, setParsed] = useState<Parsed | null>(null);
   const [mapping, setMapping] = useState<ColumnMapping>(DEFAULT_COLUMN_INDICES);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{ imported: number; skipped: number; duplicatesRemoved: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onFile = useCallback((file: File) => {
