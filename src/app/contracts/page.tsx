@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import type { HubSpotDeal } from "@/types/database";
 import { ContractsTable } from "./contracts-table";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,11 @@ export default async function ContractsPage({
 
   const { data: contracts } = await query;
 
+  const { data: hubspotDeals } = await supabase.from("hubspot_deals").select("*");
+  const hubspot = new Map(
+    (hubspotDeals ?? []).map((d) => [d.hs_deal_id, d as HubSpotDeal])
+  );
+
   const { data: distinct } = await supabase
     .from("contracts")
     .select("country, category_code, retailer_simple")
@@ -61,7 +67,7 @@ export default async function ContractsPage({
         retailers={retailers}
       />
 
-      <ContractsTable contracts={contracts ?? []} />
+      <ContractsTable contracts={contracts ?? []} hubspot={hubspot} />
     </div>
   );
 }

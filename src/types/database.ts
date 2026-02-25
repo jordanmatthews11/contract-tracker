@@ -27,3 +27,19 @@ export type ProgressLog = {
 export type ContractRow = Contract & {
   progress_logs?: ProgressLog[];
 };
+
+export type HubSpotDeal = {
+  hs_deal_id: string;
+  deal_name: string | null;
+  fa_arr_type: string | null;
+  hs_start_date: string | null;
+  hs_end_date: string | null;
+  hs_close_date: string | null;
+  deal_owner: string | null;
+  amount: number | null;
+  associated_company: string | null;
+  annual_recurring_revenue: number | null;
+  monthly_recurring_revenue: number | null;
+  deal_stage: string | null;
+  imported_at?: string;
+};
