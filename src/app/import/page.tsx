@@ -9,53 +9,71 @@ import {
   mapRow,
   type ColumnMapping,
 } from "@/lib/csv-import";
-import { Upload, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import type { ImportResult } from "@/app/api/contracts/import/route";
 
 type Parsed = { headers: string[]; rows: string[][] };
 
+function Section({
+  title,
+  count,
+  color,
+  children,
+}: {
+  title: string;
+  count: number;
+  color: "yellow" | "blue";
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const border = color === "yellow" ? "border-yellow-400/50 bg-yellow-50" : "border-blue-400/50 bg-blue-50";
+  const text = color === "yellow" ? "text-yellow-900" : "text-blue-900";
+  return (
+    <div className={`rounded-md border ${border} px-4 py-3 text-sm ${text}`}>
+      <button
+        className="flex w-full items-center justify-between font-medium"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{title} ({count})</span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
 export default function ImportPage() {
   const [parsed, setParsed] = useState<Parsed | null>(null);
-  const [mapping, setMapping] = useState<ColumnMapping>(DEFAULT_COLUMN_INDICES);
+  const [mapping] = useState<ColumnMapping>(DEFAULT_COLUMN_INDICES);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; skipped: number; duplicatesRemoved: number } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onFile = useCallback((file: File) => {
     setResult(null);
     setError(null);
-    if (!file.name.endsWith(".csv") && !file.name.endsWith(".xlsx")) {
-      setError("Please upload a CSV file (Excel export as CSV is supported).");
+    if (!file.name.endsWith(".csv")) {
+      setError("Please upload a CSV file. In Google Sheets: File → Download → CSV.");
       return;
     }
     Papa.parse(file, {
       header: false,
       complete: (res) => {
         const rows = res.data as string[][];
-        if (!rows.length) {
-          setError("No rows in file.");
-          return;
-        }
+        if (!rows.length) { setError("No rows in file."); return; }
         const headers = (rows[0] ?? []).map((h) => String(h));
         const dataRows = rows.slice(1).filter((row) => row.some((c) => String(c).trim()));
-        setParsed({
-          headers,
-          rows: dataRows,
-        });
-        setMapping((m) => ({ ...DEFAULT_COLUMN_INDICES, ...m }));
+        setParsed({ headers, rows: dataRows });
       },
       error: () => setError("Failed to parse file."),
     });
   }, []);
 
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file) onFile(file);
-    },
-    [onFile]
-  );
-  const onDragOver = useCallback((e: React.DragEvent) => e.preventDefault(), []);
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) onFile(file);
+  }, [onFile]);
 
   const handleImport = useCallback(async () => {
     if (!parsed) return;
@@ -71,7 +89,7 @@ export default function ImportPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
-      setResult(data);
+      setResult(data as ImportResult);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -93,7 +111,7 @@ export default function ImportPage() {
 
       <Card
         onDrop={onDrop}
-        onDragOver={onDragOver}
+        onDragOver={(e) => e.preventDefault()}
         className="border-2 border-dashed border-muted-foreground/25 bg-muted/20"
       >
         <CardHeader>
@@ -102,8 +120,8 @@ export default function ImportPage() {
             Drop CSV or choose file
           </CardTitle>
           <CardDescription>
-            Column mapping: A=Deal ID, B=Start, C=End, D=Category, E=Country, G=Store list,
-            H=Retailer, I=Retailer Simple, J=Quota, K=Notes, L=Months
+            Columns: A=Deal ID, B=Start, C=End, D=Category, E=Country, F=Store list,
+            G=Retailer, H=Retailer Simple, I=Quota, J=Notes, K=Months
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -111,10 +129,7 @@ export default function ImportPage() {
             type="file"
             accept=".csv"
             className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFile(f);
-            }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
           />
           <div className="flex items-center gap-2 border-t pt-4">
             <Button variant="outline" disabled title="Coming soon: live sync with Google Sheets">
@@ -132,77 +147,153 @@ export default function ImportPage() {
       )}
 
       {result && (
-        <div className="rounded-md border border-green-500/50 bg-green-500/10 px-4 py-2 text-sm text-green-800 dark:text-green-200">
-          Imported {result.imported} rows. {result.skipped > 0 && `Skipped ${result.skipped} (missing deal_id or retailer_simple).`}
-            {result.duplicatesRemoved > 0 && ` ${result.duplicatesRemoved} duplicate row(s) in file were merged.`}
-        </div>
-      )}
+        <div className="space-y-3">
+          <div className="rounded-md border border-green-500/50 bg-green-50 px-4 py-3 text-sm text-green-900">
+            <p className="font-medium">
+              Import complete — {result.imported.toLocaleString()} unique rows saved to database
+              {" "}(out of {result.totalRows.toLocaleString()} rows in file).
+            </p>
+          </div>
 
-      {parsed && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5" />
-                Preview (first 10 rows)
-              </CardTitle>
-              <CardDescription>
-                {parsed.rows.length} total rows. Re-importing will upsert by Deal ID + Retailer Simple.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-left text-sm">
+          {result.duplicateCount > 0 && (
+            <Section
+              title={`Duplicate rows in file — last value was kept`}
+              count={result.duplicateCount}
+              color="yellow"
+            >
+              <p className="mb-2 text-xs text-yellow-800">
+                These Deal ID + Retailer Simple combinations appeared more than once in the CSV.
+                The last row in the file was saved.
+              </p>
+              <div className="max-h-48 overflow-y-auto rounded border border-yellow-300 bg-white">
+                <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="px-3 py-2 font-medium">Deal ID</th>
-                      <th className="px-3 py-2 font-medium">Retailer</th>
-                      <th className="px-3 py-2 font-medium">Country</th>
-                      <th className="px-3 py-2 font-medium">Quota</th>
-                      <th className="px-3 py-2 font-medium">Start</th>
-                      <th className="px-3 py-2 font-medium">End</th>
+                    <tr className="border-b bg-yellow-50">
+                      <th className="px-3 py-1 text-left">#</th>
+                      <th className="px-3 py-1 text-left">Deal ID</th>
+                      <th className="px-3 py-1 text-left">Retailer Simple</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {mappedPreview.map((row, i) => (
+                    {result.duplicateExamples.map((key, i) => {
+                      const [dealId, retailer] = key.split(" | ");
+                      return (
+                        <tr key={i} className="border-b last:border-0">
+                          <td className="px-3 py-1 text-muted-foreground">{i + 1}</td>
+                          <td className="px-3 py-1">{dealId}</td>
+                          <td className="px-3 py-1">{retailer}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {result.duplicateCount > 50 && (
+                <p className="mt-1 text-xs text-yellow-700">
+                  Showing first 50 of {result.duplicateCount} duplicates.
+                </p>
+              )}
+            </Section>
+          )}
+
+          {result.blankFieldRows.length > 0 && (
+            <Section
+              title={`Rows with blank cells`}
+              count={result.blankFieldRows.length}
+              color="blue"
+            >
+              <p className="mb-2 text-xs text-blue-800">
+                These rows were still imported. Rows with no Deal ID were given a synthetic ID (e.g. _BLANK_ROW_5).
+              </p>
+              <div className="max-h-64 overflow-y-auto rounded border border-blue-300 bg-white">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-blue-50">
+                      <th className="px-3 py-1 text-left">CSV Row #</th>
+                      <th className="px-3 py-1 text-left">Blank fields</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.blankFieldRows.map((r, i) => (
                       <tr key={i} className="border-b last:border-0">
-                        <td className="px-3 py-2">{row.deal_id}</td>
-                        <td className="px-3 py-2">{row.retailer_simple ?? row.retailer}</td>
-                        <td className="px-3 py-2">{row.country}</td>
-                        <td className="px-3 py-2">{row.monthly_quota ?? ""}</td>
-                        <td className="px-3 py-2">{row.start_date ?? ""}</td>
-                        <td className="px-3 py-2">{row.end_date ?? ""}</td>
+                        <td className="px-3 py-1">{r.row}</td>
+                        <td className="px-3 py-1">{r.fields.join(", ")}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 flex gap-2">
-                <Button onClick={handleImport} disabled={importing}>
-                  {importing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Importing…
-                    </>
-                  ) : (
-                    "Import"
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setParsed(null);
-                    setResult(null);
-                    setError(null);
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              {result.blankFieldRows.length >= 200 && (
+                <p className="mt-1 text-xs text-blue-700">
+                  Showing first 200 affected rows.
+                </p>
+              )}
+            </Section>
+          )}
+        </div>
+      )}
 
-        </>
+      {parsed && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Preview (first 10 rows)
+            </CardTitle>
+            <CardDescription>
+              {parsed.rows.length.toLocaleString()} total rows detected.
+              All rows will be imported — blank cells are allowed, duplicates are merged (last value kept).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-3 py-2 font-medium">Deal ID</th>
+                    <th className="px-3 py-2 font-medium">Retailer Simple</th>
+                    <th className="px-3 py-2 font-medium">Retailer</th>
+                    <th className="px-3 py-2 font-medium">Country</th>
+                    <th className="px-3 py-2 font-medium">Quota</th>
+                    <th className="px-3 py-2 font-medium">Start</th>
+                    <th className="px-3 py-2 font-medium">End</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mappedPreview.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0">
+                      <td className="px-3 py-2">{row.deal_id || <span className="text-muted-foreground italic">blank</span>}</td>
+                      <td className="px-3 py-2">{row.retailer_simple || <span className="text-muted-foreground italic">blank</span>}</td>
+                      <td className="px-3 py-2 max-w-[180px] truncate">{row.retailer || ""}</td>
+                      <td className="px-3 py-2">{row.country || ""}</td>
+                      <td className="px-3 py-2">{row.monthly_quota ?? ""}</td>
+                      <td className="px-3 py-2">{row.start_date ?? ""}</td>
+                      <td className="px-3 py-2">{row.end_date ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Button onClick={handleImport} disabled={importing}>
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing {parsed.rows.length.toLocaleString()} rows…
+                  </>
+                ) : (
+                  `Import all ${parsed.rows.length.toLocaleString()} rows`
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setParsed(null); setResult(null); setError(null); }}
+              >
+                Clear
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
