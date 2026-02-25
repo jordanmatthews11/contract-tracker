@@ -39,15 +39,15 @@ export default async function ContractsPage({
     (hubspotDeals ?? []).map((d) => [d.hs_deal_id, d as HubSpotDeal])
   );
 
-  const { data: allDealIdRows } = await supabase.from("contracts").select("deal_id");
-  const dealIdSet = new Set((allDealIdRows ?? []).map((r) => r.deal_id));
+  const { data: allForDupes } = await supabase
+    .from("contracts")
+    .select("deal_id, category_code, retailer_simple")
+    .limit(50000);
+
+  const dealIdSet = new Set((allForDupes ?? []).map((r) => r.deal_id));
   const hubspotNotInMapping = (hubspotDeals ?? []).filter(
     (d) => !dealIdSet.has(d.hs_deal_id) && d.fa_arr_type === "Syndicated"
   ) as HubSpotDeal[];
-
-  const { data: allForDupes } = await supabase
-    .from("contracts")
-    .select("deal_id, category_code, retailer_simple");
   const key = (r: { deal_id: string; category_code: string | null; retailer_simple: string | null }) =>
     `${r.deal_id}|${r.category_code ?? ""}|${r.retailer_simple ?? ""}`;
   const countByKey = new Map<string, number>();
