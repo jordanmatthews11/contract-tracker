@@ -134,6 +134,7 @@ export default function ImportPage() {
       {result && (
         <div className="rounded-md border border-green-500/50 bg-green-500/10 px-4 py-2 text-sm text-green-800 dark:text-green-200">
           Imported {result.imported} rows. {result.skipped > 0 && `Skipped ${result.skipped} (missing deal_id or retailer_simple).`}
+            {result.duplicatesRemoved > 0 && ` ${result.duplicatesRemoved} duplicate row(s) in file were merged.`}
         </div>
       )}
 
