@@ -12,6 +12,50 @@ import {
 } from "@/components/ui/table";
 import type { HubSpotDeal } from "@/types/database";
 
+function escapeCsvCell(value: string | number | null | undefined): string {
+  if (value == null) return "";
+  const s = String(value);
+  if (s.includes('"') || s.includes(",") || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadHubSpotMissingCsv(deals: HubSpotDeal[]) {
+  const headers = [
+    "Record ID",
+    "Deal Name",
+    "Associated Company",
+    "Deal Stage",
+    "Start Date",
+    "End Date",
+    "Close Date",
+    "Deal Owner",
+    "Amount",
+    "ARR",
+    "MRR",
+  ];
+  const rows = deals.map((d) => [
+    escapeCsvCell(d.hs_deal_id),
+    escapeCsvCell(d.deal_name),
+    escapeCsvCell(d.associated_company),
+    escapeCsvCell(d.deal_stage),
+    escapeCsvCell(d.hs_start_date),
+    escapeCsvCell(d.hs_end_date),
+    escapeCsvCell(d.hs_close_date),
+    escapeCsvCell(d.deal_owner),
+    escapeCsvCell(d.amount),
+    escapeCsvCell(d.annual_recurring_revenue),
+    escapeCsvCell(d.monthly_recurring_revenue),
+  ]);
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `hubspot-deals-not-in-mapping-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export type DuplicateGroup = {
   deal_id: string;
   category_code: string | null;
@@ -102,9 +146,18 @@ export function ContractAlerts({
               <h2 id="hubspot-modal-title" className="text-lg font-semibold">
                 HubSpot deals not in mapping sheet
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => setShowHubSpotModal(false)}>
-                Close
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadHubSpotMissingCsv(visibleHubspotDeals)}
+                >
+                  Export CSV
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowHubSpotModal(false)}>
+                  Close
+                </Button>
+              </div>
             </div>
             <div className="overflow-auto flex-1">
               <Table>
