@@ -87,11 +87,20 @@ export default function ImportPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: mapped }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
+      let data: ImportResult & { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        setError(res.ok ? "Import failed." : `Server error (${res.status}). Check that migration 002 is applied and Supabase env vars are correct.`);
+        return;
+      }
+      if (!res.ok) {
+        setError(typeof data?.error === "string" ? data.error : "Import failed.");
+        return;
+      }
       setResult(data as ImportResult);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
+      setError(e instanceof Error ? e.message : "Import failed.");
     } finally {
       setImporting(false);
     }
@@ -152,6 +161,7 @@ export default function ImportPage() {
             <p className="font-medium">
               Import complete — {result.imported.toLocaleString()} unique rows saved to database
               {" "}(out of {result.totalRows.toLocaleString()} rows in file).
+              {result.verifiedCount != null && ` Verified: ${result.verifiedCount.toLocaleString()} rows in database.`}
             </p>
           </div>
 

@@ -22,6 +22,7 @@ export type ImportResult = {
   trueDuplicateCount: number;
   trueDuplicateExamples: string[];
   blankFieldRows: { row: number; fields: string[] }[];
+  verifiedCount?: number;
 };
 
 const BATCH_SIZE = 500;
@@ -143,12 +144,35 @@ export async function POST(request: Request) {
       }
     }
 
+    const { count, error: countError } = await supabase
+      .from("contracts")
+      .select("id", { count: "exact", head: true });
+
+    if (countError) {
+      console.error("Verification read failed", countError);
+      return NextResponse.json(
+        { error: `Import wrote data but verification failed: ${countError.message}. Check schema and Supabase project.` },
+        { status: 500 }
+      );
+    }
+
+    if (toInsert.length > 0 && (count ?? 0) === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Import reported success but no rows found in database. Check that migration 002 is applied (contracts table has id and row_hash) and that you are using the same Supabase project for import and for viewing Contracts.",
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       imported: toInsert.length,
       totalRows: rows.length,
       trueDuplicateCount: trueDuplicateHashes.size,
       trueDuplicateExamples,
       blankFieldRows: blankFieldRows.slice(0, 200),
+      verifiedCount: count ?? undefined,
     } satisfies ImportResult);
   } catch (e) {
     console.error(e);

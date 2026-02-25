@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { ContractsTable } from "./contracts-table";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { ContractFilters } from "./contracts-filters";
 
 export default async function ContractsPage({
