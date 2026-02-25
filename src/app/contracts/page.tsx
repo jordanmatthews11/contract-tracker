@@ -39,15 +39,28 @@ export default async function ContractsPage({
     (hubspotDeals ?? []).map((d) => [d.hs_deal_id, d as HubSpotDeal])
   );
 
+  // Build the HubSpot not-in-mapping alert: query contracts only for the Syndicated
+  // HubSpot deal IDs — a small targeted IN() that is never affected by row caps.
+  const syndicatedHubspotIds = (hubspotDeals ?? [])
+    .filter((d) => d.fa_arr_type === "Syndicated")
+    .map((d) => d.hs_deal_id);
+
+  const { data: matchedContracts } = syndicatedHubspotIds.length > 0
+    ? await supabase
+        .from("contracts")
+        .select("deal_id")
+        .in("deal_id", syndicatedHubspotIds)
+    : { data: [] };
+
+  const matchedDealIdSet = new Set((matchedContracts ?? []).map((r) => r.deal_id));
+  const hubspotNotInMapping = (hubspotDeals ?? []).filter(
+    (d) => d.fa_arr_type === "Syndicated" && !matchedDealIdSet.has(d.hs_deal_id)
+  ) as HubSpotDeal[];
+
   const { data: allForDupes } = await supabase
     .from("contracts")
     .select("deal_id, category_code, retailer_simple")
     .limit(50000);
-
-  const dealIdSet = new Set((allForDupes ?? []).map((r) => r.deal_id));
-  const hubspotNotInMapping = (hubspotDeals ?? []).filter(
-    (d) => !dealIdSet.has(d.hs_deal_id) && d.fa_arr_type === "Syndicated"
-  ) as HubSpotDeal[];
   const key = (r: { deal_id: string; category_code: string | null; retailer_simple: string | null }) =>
     `${r.deal_id}|${r.category_code ?? ""}|${r.retailer_simple ?? ""}`;
   const countByKey = new Map<string, number>();
