@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import type { HubSpotDeal } from "@/types/database";
+import { ContractAlerts } from "./contract-alerts";
 import { ContractsTable } from "./contracts-table";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,38 @@ export default async function ContractsPage({
     (hubspotDeals ?? []).map((d) => [d.hs_deal_id, d as HubSpotDeal])
   );
 
+  const { data: allDealIdRows } = await supabase.from("contracts").select("deal_id");
+  const dealIdSet = new Set((allDealIdRows ?? []).map((r) => r.deal_id));
+  const hubspotNotInMapping = (hubspotDeals ?? []).filter(
+    (d) => !dealIdSet.has(d.hs_deal_id)
+  ) as HubSpotDeal[];
+
+  const { data: allForDupes } = await supabase
+    .from("contracts")
+    .select("deal_id, category_code, retailer_simple");
+  const key = (r: { deal_id: string; category_code: string | null; retailer_simple: string | null }) =>
+    `${r.deal_id}|${r.category_code ?? ""}|${r.retailer_simple ?? ""}`;
+  const countByKey = new Map<string, number>();
+  for (const r of allForDupes ?? []) {
+    const k = key(r);
+    countByKey.set(k, (countByKey.get(k) ?? 0) + 1);
+  }
+  const duplicateGroups = (allForDupes ?? [])
+    .filter((r) => (countByKey.get(key(r)) ?? 0) > 1)
+    .map((r) => ({
+      deal_id: r.deal_id,
+      category_code: r.category_code ?? null,
+      retailer_simple: r.retailer_simple ?? null,
+      count: countByKey.get(key(r)) ?? 0,
+    }));
+  const seenKeys = new Set<string>();
+  const duplicateGroupsDeduped = duplicateGroups.filter((r) => {
+    const k = key(r);
+    if (seenKeys.has(k)) return false;
+    seenKeys.add(k);
+    return true;
+  });
+
   const { data: distinct } = await supabase
     .from("contracts")
     .select("country, category_code, retailer_simple")
@@ -65,6 +98,11 @@ export default async function ContractsPage({
         countries={countries}
         categories={categories}
         retailers={retailers}
+      />
+
+      <ContractAlerts
+        hubspotNotInMapping={hubspotNotInMapping}
+        duplicateGroups={duplicateGroupsDeduped}
       />
 
       <ContractsTable contracts={contracts ?? []} hubspot={hubspot} />
